@@ -4,23 +4,23 @@ getUniquePerms <- function(groupAssignments, numPerms)
 {
   set.seed(1)
   cases<-length(groupAssignments[which(groupAssignments==1)])
-  total<-length(groupAssignments)
-  browns<-hash()
-  possible<-choose(total,cases)
+  size<-length(groupAssignments)
+  hashTable<-hash()
+  possible<-choose(size,cases)
   if (possible<numPerms) {
     numPerms=possible
   }
   permsLeft=numPerms
   while(permsLeft>0){
     for(i in 1:permsLeft){
-      vec<-sample(groupAssignments,replace=FALSE)
-      ones<-which(vec==1)
-      perm<-paste(ones, collapse = ' ')
-      browns[[perm]]<-0
+      shuffledVector<-sample(groupAssignments,replace=FALSE)
+      caseIndices<-which(shuffledVector==1)
+      perm<-paste(caseIndices, collapse = ' ')
+      hashTable[[perm]]<-0
     }
-    permsLeft<-numPerms-length(browns)
+    permsLeft<-numPerms-length(hashTable)
   }
-  keys(browns)
+  keys(hashTable)
 }
 
 caseControlStatus<-c(1,1,1,1,1,0,0,0,0,0)
