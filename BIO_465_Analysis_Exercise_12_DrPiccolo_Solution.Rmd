@@ -1,0 +1,130 @@
+---
+title: "BIO 465 Analysis Exercise 12 - Dr. Piccolo's solution"
+output: html_document
+---
+
+```{r}
+suppressWarnings(suppressPackageStartupMessages(library(grr)))
+
+getUniquePerms <- function(groupAssignments, numPerms)
+{
+  set.seed(1)
+  expectedMax <- choose(length(groupAssignments), min(table(groupAssignments)))
+  l <- length(groupAssignments)
+  numMinorityClass <- min(table(groupAssignments))
+
+  buildPerms <- function(groupAssignments, priorPermsData, numPermsToGenerate)
+  {
+    print("Build and sort list")
+    sampleSort <- function(x)
+    {
+      sort2(sample.int(x, size=numMinorityClass))
+    }
+    newPermsData <- sapply(rep(l, numPermsToGenerate), sampleSort, USE.NAMES=FALSE, simplify=FALSE)
+
+    print("Add prior value(s)")
+    newPermsData <- c(priorPermsData, newPermsData)
+
+    print("Uniquify")
+    return(unique(newPermsData))
+  }
+
+  permsData <- buildPerms(groupAssignments, list(which(groupAssignments==1)), ceiling(numPerms * 1.01))
+
+  while(length(permsData) < expectedMax & length(permsData) < (numPerms+1))
+    permsData <- buildPerms(groupAssignments, permsData, ceiling(numPerms * 0.10))
+
+  print("Select the items we want")
+  permsData <- permsData[2:(min(numPerms, (expectedMax - 1)) + 1)]
+
+  print("Build 0/1 matrix")
+  matrix01 <- matrix(0, ncol=l, nrow=length(permsData))
+  
+  print("Set one values based on selected indices")
+  for (i in 1:length(permsData))
+    matrix01[i,permsData[[i]]] <- 1
+
+  ########################################
+  # This is a faster alternative if we don't have to create a matrix at the end
+  ########################################
+  #nullAssignments <- rep(0, l)
+  #expandToZeroOne <- function(indices) { nullAssignments[indices] <- 1; nullAssignments }
+  #matrix01 <- lapply(permsData, expandToZeroOne)
+  ###matrix01 <- do.call(rbind, matrix01) # Skip this step if you don't need a matrix
+  
+  return(matrix01)
+}
+
+caseControlStatus <- c(1, 1, 1, 1, 1, 0, 0, 0, 0, 0)
+
+test0 <- getUniquePerms(caseControlStatus, 5)
+#print(test0)
+#print(dim(test0))
+
+test1 <- getUniquePerms(caseControlStatus, 100)
+#print(dim(test1))
+
+test2 <- getUniquePerms(caseControlStatus, 10000)
+#print(dim(test2))
+
+caseControlStatusBig <- c(rep(1, 100), rep(0, 900))
+test3 <- getUniquePerms(caseControlStatusBig, 1000000)
+#print(dim(test3))
+system.time(getUniquePerms(caseControlStatusBig, 1000000))
+```
+
+```{r}
+checkOutput <- function(data, numCases, expectedNumMatches, original)
+{
+  suppressWarnings(suppressPackageStartupMessages(library(data.table)))
+  
+  a <- dim(unique(as.data.table(data)))
+  b <- dim(data)
+
+  print("Checking uniqueness")
+  if (!(all(a==b)))
+  {
+    print(a)
+    print(b)
+    print(data)
+    print(data[which(duplicated(as.data.table(data))),])
+    stop("Failed")
+  }
+  
+  print("Verifying that all rows have the correct number of cases")
+  uniqueNumOnes <- unique(apply(data, 1, sum))
+  if (uniqueNumOnes != numCases)
+  {
+    print(uniqueNumOnes)
+    stop("Failed")
+  }
+
+  print("Verifying that all rows have the same number of cases")
+  if (length(uniqueNumOnes) != 1)
+  {
+    print(uniqueNumOnes)
+    stop("Failed")
+  }
+
+  print("Verifying that the output is the correct size")
+  if (nrow(data) != expectedNumMatches)
+    stop("Failed")
+
+  print("Verifying that the original vector is not in the output")
+  for (i in 1:nrow(data))
+  {
+    if (all(original == data[i,]))
+      stop("Failed")
+    
+    # For now we only check the first row because takes too long to check all (for now)
+    #break
+  }
+
+  print("Passed all tests!!")
+}
+
+checkOutput(test0, 5, 5, caseControlStatus)
+checkOutput(test1, 5, 100, caseControlStatus)
+checkOutput(test2, 5, 251, caseControlStatus)
+checkOutput(test3, 100, 1000000, caseControlStatusBig)
+```

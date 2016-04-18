@@ -1,0 +1,184 @@
+---
+title: "BIO 465 Analysis Exercise 12"
+output: html_document
+---
+
+## Introduction
+
+The purpose of this exercise is to help you understand better how a permutation analysis works and to help you gain additional experience with R programming. This exercise was created by Ryan M, Ariel H, and Andy H as part of their semester project. They are examining ways to improve the efficiency of permutation analyses. Your participation in this exercise will help them complete their project.
+
+Suppose you are studying a population of individuals who have Alzheimer's disease (cases) and are comparing them against a population of individuals who do not have the disease (controls). Suppose that you have taken MRI brain scans of these individuals and that your goal is to use machine-learning methods to accurately distinguish between cases and controls. You use the [ImageJ](https://imagej.nih.gov) software to identify anatomical features in these images. Then you use a classification algorithm to predict case/control status.
+
+You use cross-validation to evaluate your algorithm and find that your predictions are accurate 80% of the time. Now you want to evaluate the statistical significance of this finding. There isn't a straightforward way to calculate a p-value in this situation using traditional statistical methods. As an alternative, you can use a permutation test.
+
+## What is a permutation test? How do you perform one?
+
+A permutation test is a way to assess statistical significance after your analysis has been run. To do this, you perform a large number of tests with "random" data. This is achieved by randomly shuffling (permuting) the class labels (e.g., which individuals are cases or controls) and rerunning the analysis using these permuted labels. Repeating this many times allows you to build a "null" distribution based on the randomly shuffled results. Then you can see how your *actual* result compares against the *permuted* results. This is related to the False Discovery Rate technique we discussed earlier in the semester.
+
+Consider the MRI brain scan example described above. The *actual* classification accuracy was 80%. To do a permutation analysis, you would randomly permute the case/control labels and perform classification with the permuted labels--and you would repeat this process many times. Your next step would be to count how many times the classification accuracy for the randomly permuted labels was *higher* than the classification accuracy for the actual labels. Suppose the *random* accuracy values were higher than the *actual* accuracy value 95% of the time; your "empirical p-value" would be 0.05 (100%-95%).
+
+The following pseudocode demonstrates how you would perform this analysis.
+
+```
+actualAccuracy <- classify(mriData, actualLabels)
+
+permutedAccuracies <- NULL
+
+for (i in 1:1000)
+{
+  permutedLabels <- sample(actualLabels, replace=FALSE)
+  permutedAccuracies <- c(permutedAccuracies, classify(mriData, permutedLabels))
+}
+
+numPermsGreater <- sum(permutedAccuracies > actualAccuracy)
+numSamples <- length(actualLabels)
+
+empiricalPValue <- (numPermsGreater + 1) / (numSamples + 1)
+```
+
+## A visual representation of a permutation test
+
+Here are some example data values for features from MRI brain scan images. There are 10 total samples, including 5 cases and 5 controls.
+
+```
+Person:    1        2        3        4        5         6         7        8        9         10
+Status:    case     case     case     case     case      ctrl      ctrl     ctrl     ctrl      ctrl
+Feature1:  8.11198  10.93025 9.82319  10.89666 11.365826 11.87519  9.41164  11.38057 12.85798  9.41223
+Feature2:  5.61596  4.72441  5.679577 5.317569 4.300237  4.433467  4.803806 5.955949 5.877514  4.852691
+Feature3:  18.20209 25.80381 27.50772 13.22979 13.41708  19.12176  16.72101 28.95808 20.84575  17.20012
+Feature4:  46.18011 44.71052 48.50456 44.27476 46.62076  49.38920  44.80366 40.90137 46.77900  40.96239
+Feature5:  5.842672 2.265425 3.442930 4.078698 3.149993  3.165189  2.089757 2.853935 3.293425  3.631466
+```
+
+Below is a random permutation of the above data. Notice that all the feature values are the same; the only differences are the case and control labels for each person.
+
+```
+Person:    1        2        3        4        5         6         7        8        9         10
+Status:    ctrl     ctrl     case     case     ctrl      case      case     ctrl     ctrl      case
+Feature1:  8.11198  10.93025 9.82319  10.89666 11.365826 11.87519  9.41164  11.38057 12.85798  9.41223
+Feature2:  5.61596  4.72441  5.679577 5.317569 4.300237  4.433467  4.803806 5.955949 5.877514  4.852691
+Feature3:  18.20209 25.80381 27.50772 13.22979 13.41708  19.12176  16.72101 28.95808 20.84575  17.20012
+Feature4:  46.18011 44.71052 48.50456 44.27476 46.62076  49.38920  44.80366 40.90137 46.77900  40.96239
+Feature5:  5.842672 2.265425 3.442930 4.078698 3.149993  3.165189  2.089757 2.853935 3.293425  3.631466
+```
+
+For the permutation analysis, you would repeat the classification analysis using the permuted group labels. After repeating this process (random shuffling + classification) many times, you can compare the accuracy you saw with the *actual* labels against the accuracy you saw with the *randomly* permuted labels.
+
+The following R code demonstrates this process one step at a time using this example data set. Run the following command to load the example data set into your workspace.
+
+```{r}
+makeDataFrame <- function()
+{
+  f1 <- c(8.11198, 10.93025, 9.82319, 10.89666, 11.365826, 11.87519,  9.41164, 11.38057, 12.85798,  9.41223)
+  f2 <- c(5.61596, 4.72441, 5.679577, 5.317569, 4.300237, 4.433467, 4.803806, 5.955949, 5.877514, 4.852691)
+  f3 <- c(18.20209, 25.80381, 27.50772, 13.22979, 13.41708, 19.12176, 16.72101, 28.95808, 20.84575, 17.20012)
+  f4 <- c(46.18011, 44.71052, 48.50456, 44.27476, 46.62076, 49.38920, 44.80366, 40.90137, 46.77900, 40.96239)
+  f5 <- c(5.842672, 2.265425, 3.442930, 4.078698, 3.149993, 3.165189, 2.089757, 2.853935, 3.293425, 3.631466)
+  df <- data.frame(f1,f2,f3,f4,f5)
+  
+  as.data.frame(t(df))
+}
+
+sampleData <- makeDataFrame()
+```
+
+We will represent which individuals are cases and controls using a vector called ```caseControlStatus```. A value of ```1``` indicates that the sample at that index is a case. A value of ```0``` indicates that a sample is a control.
+
+```{r}
+caseControlStatus <- c(1, 1, 1, 1, 1, 0, 0, 0, 0, 0)
+```
+
+The following code creates a permutation of these case/control assignments.
+
+```{r}
+permutedCaseControlStatus <- sample(caseControlStatus, replace=FALSE)
+permutedCaseControlStatus
+```
+
+Is the permutation different than the real cases vector?
+
+#### Put answer here
+
+If you generated 1000 of these permutations, how many of these permutations do you think would be repeated? (Hint: for every number of cases and controls, there is a particular number of total possible unique permutations.)
+
+#### Put answer here
+
+There are in fact 252 unique ways to permute this vector. In other words, no matter how many times you shuffle the 0 and 1 values, the maximum number of different ways you can shuffle the vector is 252. If you remember back to your glory days of statistics, you can calculate this number using [n choose k](https://en.wikipedia.org/wiki/Combination#Number_of_k-combinations), where n is the total number of samples and k is the total number of cases. Because 10 choose 5 is 252, we can expect many of the 1000 permutations to be repeats.
+
+```{r}
+choose(10, 5)
+```
+
+How do you think duplicate permutations would affect the power of the overall permutation test?
+
+#### Put answer here
+
+## A problem
+
+As mentioned above, one limitation of current permutation approaches is that they do not ensure that all of the generated permutations are unique. "This scenario requires careful treatment from a mathematical point of view, because of the possibility that the random permutations may include repetitions of the same permutations and indeed of the original data." Repeats in a permutation analysis may skew the p-values that can be generated from this process; therefore, it is important to take measures to ensure that each permutation is unique. Refer to [this article](http://www.degruyter.com/view/j/sagmb.2010.9.1/sagmb.2010.9.1.1585/sagmb.2010.9.1.1585.xml) for a more in-depth explanation of this concept.
+
+In some cases, repeats are unavoidable. As we demonstrated, if you only have 10 samples (and 5 cases), it is only possible to generate 252 unique permutations. In this scenario, a permutation test might not be the best technique to use.
+
+Now consider the scenario where you have a much larger data set--let's say 1000 samples and 500 cases. There would be an incredibly large number of ways to permute the data (see below). In this case, it would be very unlikely that any of these permutations would be duplicates, so we wouldn't need to worry too much about excluding duplicates.
+
+```{r}
+choose(1000, 500)
+```
+
+The problem of duplicate permutations becomes most relevant when one or more of the following scenarios occur:
+
+1. You have a modest number of samples (maybe 20-100).
+2. You have an imbalance between the groups--for example, when you have 100 samples but only 5 controls.
+3. You perform a very large number of permutations (maybe 100,000+).
+
+Let's say you had 50 samples and only 5 controls and you wanted to generate 100,000 permutations. This means you have over 2 million possible permutations, well more than your number of needed permutations. However, on average, you would have 2,300 duplicates, weakening your power unnecessarily.
+
+## Developing a solution
+
+Please create a function called ```genUniquePerms``` that generates unique permutations. Your function should accept two input parameters:
+
+1. A vector of case/control assignments, coded as 0 and 1 values. This parameter should be named ```groupAssignments```.
+2. The number of unique permutations that you want the function to generate. This parameter should be named ```numPerms```.
+
+Your function should return a matrix where each row is a unique permutation of the input vector. For example, if ```groupAssignments``` had 10 values and ```numPerms``` were 100, the matrix would have 10 columns and 100 rows. Not only should you check that each proposed permutation has not already been generated by your algorithm, you should also check that each proposed permutation is not the same as your input vector. If you have obtained the maximum number of possible permutations, your function should stop looking for new permutations and should return the unique ones, even if the number of permutations is less than the ```numPerms``` value. Also, make sure that your function sets a random seed so the results will be the same each time it is executed.
+
+The following code will help you get started.
+
+```{r}
+getUniquePerms <- function(groupAssignments, numPerms)
+{
+  set.seed(1)
+  # Insert code here
+}
+```
+
+Initially, we will apply your function to the ```caseControlStatus``` vector that was created earlier in this assignment. To test your function, we will make the function call shown below. We will then verify that your function produces 100 unique permutations.
+
+```{r}
+test1 <- getUniquePerms(caseControlStatus, 100)
+```
+
+For a second test, we will make the function call shown below, and we will verify that your function produces no more than 252 unique permutations (the maximum number of permutations for a data set with 10 samples and 5 cases).
+
+```{r}
+test2 <- getUniquePerms(caseControlStatus, 10000)
+```
+
+If your function passes both of these tests, you will receive full credit on this assignment.
+
+## A friendly competition
+
+It should be possible to generate unique permutations in a computationally efficient manner for a relatively small number of samples and permutations. However, it may be more challenging to do this efficiently for a larger number of samples and permutations. Developing a solution that is faster and/or uses less memory than existing methods would benefit the research community.
+
+To encourage innovation, we are doing a "crowdsourcing" challenge among class members. For this challenge, we will test your function on a vector of 1000 samples and 100 cases. We will then benchmark each algorithm to evaluate how much time and memory it takes to generate 1,000,000 unique permutations. We will award delcious local baked goods to the creator of the function that executes in the shortest amount of time and similar prize to the creator of the function that requires the least amount of memory. In addition, any function that executes faster than Dr. Piccolo's solution will win a King Size candy bar (a gift card to pioneer book for the fastest of these). And, any function in the top 3 if there is a narrow margin will receive a lovely poem written by acclaimed local author Andy Himebaugh as a consolation prize. If any algorithms perform extremely well, we plan to submit a journal article that describes these algorithms.
+
+Below is the code that we will use to benchmark each method. Feel free to evaluate your method (and fine tune it) using this code.
+
+```{r}
+caseControlStatusBig <- c(rep(1, 100), rep(0, 900))
+test3 <- getUniquePerms(caseControlStatusBig, 1000000)
+```
+
+## Submission
+
+After completing the steps requested above, knit this document and submit the resulting **HTML file** (not the Markdown file) via Learning Suite. Make sure to complete all parts of this assignment before submitting it.
